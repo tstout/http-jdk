@@ -53,31 +53,33 @@
    Returns:
      function that accepts (operation) and optional args"
   [& {:keys [host port backlog executor]
-      :or {host "localhost" port 8080 backlog 0}}]
-  (let [addr (InetSocketAddress. host port)
-        server (HttpServer/create addr backlog)
-        state (atom :idle)]
-    (when executor
-      (.setExecutor server executor))
-    (let [server-ops {:start     (fn []
-                                   (when (= :idle @state)
-                                     (reset! state :running)
-                                     (println "Starting server")
-                                     (.start server)))
-                      :stop      (fn []
-                                   (when (= :running @state)
-                                     (reset! state :idle)
-                                     (.stop server 0)))
-                      :server    (fn [] server)
-                      :add-route (fn [path handler]
-                                   (.createContext server path (mk-handler handler)))
-                      :info      (fn [] {:host    host
-                                         :port    port
-                                         :backlog backlog
-                                         :state   @state})}]
-      (fn [operation & args]
-        (-> (server-ops operation)
-            (apply args))))))
+      :or   {host    "localhost" 
+             port    8080 
+             backlog 0}}] 
+  (let [addr       (InetSocketAddress. host port)
+        server     (HttpServer/create addr backlog)
+        state      (atom :idle)
+        _          (when executor
+                     (.setExecutor server executor))
+        server-ops {:start     (fn []
+                                 (when (= :idle @state)
+                                   (reset! state :running)
+                                   (println "Starting server")
+                                   (.start server)))
+                    :stop      (fn []
+                                 (when (= :running @state)
+                                   (reset! state :idle)
+                                   (.stop server 0)))
+                    :server    (fn [] server)
+                    :add-route (fn [path handler]
+                                 (.createContext server path (mk-handler handler)))
+                    :info      (fn [] {:host    host
+                                       :port    port
+                                       :backlog backlog
+                                       :state   @state})}]
+    (fn [operation & args]
+      (-> (server-ops operation)
+          (apply args)))))
 
 
 (defn get-request-uri
@@ -96,7 +98,7 @@
    Args:
      exchange - HttpExchange instance
    
-   Returns: path as string (e.g., \"/users/123\")"
+   Returns: path as string (e.g., /users/123)"
   [exchange]
   (-> exchange get-request-uri .getPath))
 
@@ -125,19 +127,20 @@
    
    Returns: map of query parameters"
   [exchange]
-  (let [uri (get-request-uri exchange)
-        query (.getQuery uri)]
-    (parse-query-params query)))
+  (-> (get-request-uri exchange)
+      .getQuery
+      parse-query-params))
+
 
 (defn extract-path-params
   "Extracts path parameters by comparing request path against a pattern.
    
-   For example, if context is \"/users\" and request is \"/users/123/posts/456\",
-   returns the remaining path \"/123/posts/456\".
+   For example, if context is /user and request is /users/123/posts/456,
+   returns the remaining path /123/posts/456.
    
    Args:
      exchange - HttpExchange instance
-     context-path - the context path prefix (e.g., \"/users\")
+     context-path - the context path prefix (e.g., /users)
    
    Returns: remaining path as string"
   [exchange context-path]
