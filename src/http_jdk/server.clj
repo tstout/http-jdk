@@ -3,9 +3,84 @@
            [java.net InetSocketAddress]
            [java.util.concurrent Executors]))
 
+(defn parse-query-params
+  "Parses query parameters from a URI query string.
+   Args:
+     query-string - the query string (e.g., \"name=John&age=30\")
+   Returns: map of parameters (e.g., {\"name\" \"John\" \"age\" \"30\"})"
+  [query-string]
+  (if (nil? query-string)
+    {}
+    (let [pairs (.split query-string "&")]
+      (into {}
+            (map (fn [pair]
+                   (let [[key val] (.split pair "=" 2)]
+                     [key (if (nil? val) "" val)]))
+                 pairs)))))
+
+(defn query-params
+  "Gets query parameters from an exchange.
+   
+   Args:
+     exchange - HttpExchange instance
+   
+   Returns: map of query parameters"
+  [exchange]
+  (-> exchange
+      .getRequestURI
+      .getQuery
+      parse-query-params))
+
+
+(defn request-path
+  "Gets the request path from an exchange.
+   Args:
+     exchange - HttpExchange instance
+   Returns: path as string (e.g., /users/123)"
+  [exchange]
+  (-> exchange
+      .getRequestURI
+      .getPath))
+
+(defn extract-path-params
+  "Extracts path parameters by comparing request path against a pattern.
+   For example, if context is /user and request is /users/123/posts/456,
+   returns the remaining path /123/posts/456.
+   Args:
+     exchange - HttpExchange instance
+     context-path - the context path prefix (e.g., /users)
+   Returns: remaining path as string"
+  [exchange context-path]
+  (let [request-path (request-path exchange)]
+    (if (.startsWith request-path context-path)
+      (subs request-path (count context-path))
+      "")))
+
+(defn xf-exchange
+  "Given an exchange, transform it into a map of request details for easier handling.
+   Args:
+     exchange - HttpExchange instance
+   Returns: map containing method, uri, headers, query-params, path-params, body"
+  [exchange]
+  (let [context-path (-> exchange
+                         .getHttpContext
+                         .getPath)]
+    (try
+      {:method       (.getRequestMethod exchange)
+       :uri          (.getRequestURI exchange)
+       :headers      (.getRequestHeaders exchange)
+       :query-params (query-params exchange)
+       :uri-path     (request-path exchange)
+       :context-path context-path
+       :exchange     exchange
+       :path-params  (extract-path-params exchange context-path)
+       :body         (slurp (.getRequestBody exchange))}
+      (catch Exception e
+        (println "Error processing exchange:" (.getMessage e))
+        {}))))
+
 (defn send-resp
   "Sends a response with given status and body.
-   
    Args:
      exchange - HttpExchange instance
      status - HTTP status code (e.g., 200)
@@ -25,7 +100,7 @@
   (reify HttpHandler
     (handle [_this exchange]
       (try
-        (handler-fn exchange)
+        (handler-fn (xf-exchange exchange))
         (catch Exception e
           (println "Handler error:" (.getMessage e))
           (.printStackTrace e)
@@ -33,6 +108,15 @@
             (send-resp exchange 500 (str "Server error: " (.getMessage e)))
             (catch Exception _
               (println "Failed to send error response"))))))))
+
+;; For routes, want to provide a map to the hander containting:
+;; {:method "GET"
+;; :path "/users/123"
+;; :query-params {"q" "search term"}
+;; :path-params {"id" "123"}
+;; :headers {"User-Agent" "curl/7.64.1"}
+;; :body "(InputStream or string)}
+
 
 (defn mk-http-server
   "Creates a JDK HTTP server.
@@ -84,70 +168,22 @@
 
 (defn get-request-uri
   "Gets the request URI from an exchange.
-   
    Args:
      exchange - HttpExchange instance
-   
    Returns: java.net.URI"
   [exchange]
   (.getRequestURI exchange))
 
-(defn get-request-path
-  "Gets the request path from an exchange.
-   
-   Args:
-     exchange - HttpExchange instance
-   
-   Returns: path as string (e.g., /users/123)"
-  [exchange]
-  (-> exchange get-request-uri .getPath))
-
-(defn parse-query-params
-  "Parses query parameters from a URI query string.
-   
-   Args:
-     query-string - the query string (e.g., \"name=John&age=30\")
-   
-   Returns: map of parameters (e.g., {\"name\" \"John\" \"age\" \"30\"})"
-  [query-string]
-  (if (nil? query-string)
-    {}
-    (let [pairs (.split query-string "&")]
-      (into {}
-            (map (fn [pair]
-                   (let [[key val] (.split pair "=" 2)]
-                     [key (if (nil? val) "" val)]))
-                 pairs)))))
-
-(defn get-query-params
-  "Gets query parameters from an exchange.
-   
-   Args:
-     exchange - HttpExchange instance
-   
-   Returns: map of query parameters"
-  [exchange]
-  (-> (get-request-uri exchange)
-      .getQuery
-      parse-query-params))
 
 
-(defn extract-path-params
-  "Extracts path parameters by comparing request path against a pattern.
-   
-   For example, if context is /user and request is /users/123/posts/456,
-   returns the remaining path /123/posts/456.
-   
-   Args:
-     exchange - HttpExchange instance
-     context-path - the context path prefix (e.g., /users)
-   
-   Returns: remaining path as string"
-  [exchange context-path]
-  (let [request-path (get-request-path exchange)]
-    (if (.startsWith request-path context-path)
-      (subs request-path (count context-path))
-      "")))
+
+
+
+
+
+;; TODO - 
+;; Change add-route to expect a fn that accepts a map created
+;; from xf-exchange
 
 (defn set-response-header
   "Sets a response header.
@@ -162,19 +198,19 @@
   (.set (.getResponseHeaders exchange) name value))
 
 
-
-
-
 (comment
+  *e
+  
   (def server (mk-http-server :host "localhost" :port 8080)) 
 
   ;; Simple route
-  (server :add-route "/hello" (fn [exchange]
-                                (send-resp exchange 200 "Hello, World!")))
+  (server :add-route "/hello" (fn [m]
+                                (let [{:keys [exchange]} m]
+                                (send-resp exchange 200 "Hello, World!"))))
   
   ;; Route with query parameters: GET /search?q=clojure&limit=10
   (server :add-route "/search" (fn [exchange]
-                                 (let [params (get-query-params exchange)]
+                                 (let [params (query-params exchange)]
                                    (send-resp exchange 200 
                                               (str "Search query: " (params "q") 
                                                    ", limit: " (params "limit"))))))
@@ -200,8 +236,7 @@
                                   (send-resp exchange 200 
                                              (str "Post ID: " post-id ", Format: " format)))))
 
-  (server :start)      ; starts listening
-  (server :info)       ; {:host "localhost" :port 8080 ...}
+  (server :start)      ; starts listening (server :info)       ; {:host "localhost" :port 8080 ...}
   (server :server)     ; the HttpServer object
   (server :stop)   
 
