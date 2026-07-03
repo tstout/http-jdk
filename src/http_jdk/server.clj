@@ -79,6 +79,7 @@
         (println "Error processing exchange:" (.getMessage e))
         {}))))
 
+;; This could be private
 (defn send-resp
   "Sends a response with given status and body.
    Args:
@@ -86,8 +87,9 @@
      status - HTTP status code (e.g., 200)
      body - response body as string
   "
-  [exchange status body]
-  (let [response-bytes (.getBytes body "UTF-8")
+  [exchange m]
+  (let [{:keys [body status headers]} m
+        response-bytes (.getBytes body "UTF-8")
         response-len (count response-bytes)]
     (.set (.getResponseHeaders exchange) "Content-Type" "text/plain; charset=UTF-8")
     (.sendResponseHeaders exchange status response-len)
@@ -100,12 +102,16 @@
   (reify HttpHandler
     (handle [_this exchange]
       (try
-        (handler-fn (xf-exchange exchange))
+        (->> exchange
+             xf-exchange
+             handler-fn
+             (send-resp exchange)) 
         (catch Exception e
           (println "Handler error:" (.getMessage e))
           (.printStackTrace e)
           (try
-            (send-resp exchange 500 (str "Server error: " (.getMessage e)))
+            (send-resp exchange 
+                       {:headers "" :status 500 :body (str "Server error: " (.getMessage e))})
             (catch Exception _
               (println "Failed to send error response"))))))))
 
@@ -204,41 +210,42 @@
   (def server (mk-http-server :host "localhost" :port 8080)) 
 
   ;; Simple route
-  (server :add-route "/hello" (fn [m]
-                                (let [{:keys [exchange]} m]
-                                (send-resp exchange 200 "Hello, World!"))))
+  (server :add-route "/hello" (fn [_] 
+                                {:status  200
+                                 :body    "Hello, World!"
+                                 :headers ""}))
   
   ;; Route with query parameters: GET /search?q=clojure&limit=10
-  (server :add-route "/search" (fn [exchange]
-                                 (let [params (query-params exchange)]
-                                   (send-resp exchange 200 
-                                              (str "Search query: " (params "q") 
-                                                   ", limit: " (params "limit"))))))
-  
+  ;; (server :add-route "/search" (fn [exchange]
+  ;;                                (let [params (query-params exchange)]
+  ;;                                  (send-resp exchange 200 
+  ;;                                             (str "Search query: " (params "q") 
+  ;;                                                  ", limit: " (params "limit"))))))
+  ;; 
   ;; Route with path parameters: GET /users/123
   ;; The context path is the prefix, remaining path can be parsed manually
-  (server :add-route "/users" (fn [exchange]
-                                (let [remaining-path (extract-path-params exchange "/users")
-                                      user-id (if (> (count remaining-path) 0)
-                                                (subs remaining-path 1) ; remove leading /
-                                                "none")]
-                                  (send-resp exchange 200 
-                                             (str "User ID: " user-id)))))
+  ;; (server :add-route "/users" (fn [exchange]
+  ;;                               (let [remaining-path (extract-path-params exchange "/users")
+  ;;                                     user-id (if (> (count remaining-path) 0)
+  ;;                                               (subs remaining-path 1) ; remove leading /
+  ;;                                               "none")]
+  ;;                                 (send-resp exchange 200 
+  ;;                                            (str "User ID: " user-id)))))
   
   ;; Route with both path and query: GET /posts/42?format=json
-  (server :add-route "/posts" (fn [exchange]
-                                (let [remaining-path (extract-path-params exchange "/posts")
-                                      post-id (if (> (count remaining-path) 0)
-                                                (subs remaining-path 1)
-                                                "none")
-                                      query-params (get-query-params exchange)
-                                      format (get query-params "format" "html")]
-                                  (send-resp exchange 200 
-                                             (str "Post ID: " post-id ", Format: " format)))))
-
+  ;; (server :add-route "/posts" (fn [exchange]
+  ;;                               (let [remaining-path (extract-path-params exchange "/posts")
+  ;;                                     post-id (if (> (count remaining-path) 0)
+  ;;                                               (subs remaining-path 1)
+  ;;                                               "none")
+  ;;                                     query-params (get-query-params exchange)
+  ;;                                     format (get query-params "format" "html")]
+  ;;                                 (send-resp exchange 200 
+  ;;                                            (str "Post ID: " post-id ", Format: " format)))))
+;; 
   (server :start)      ; starts listening (server :info)       ; {:host "localhost" :port 8080 ...}
   (server :server)     ; the HttpServer object
-  (server :stop)   
+  (server :stop) server  
 
   ;;
   )
