@@ -16,11 +16,30 @@
 
 (use-fixtures :once with-test-server)
 
-(deftest server-fixture-starts
-  (let [info (*test-server* :info)]
-    (is (= "localhost" (:host info)))
-    (is (= 8080 (:port info)))
-    (is (= :running (:state info)))))
+(deftest server-starts
+  (let [{:keys [host port state]} (*test-server* :info)]
+    (is (= "localhost" host))
+    (is (= 8080 port))
+    (is (= :running state))))
+
+(deftest basic-route
+  (let [route                      "/v1/service/health"
+        root-url                   "http://localhost:8080"
+        request                    (atom {})
+        _                          (*test-server* :add-route route (fn [req]
+                                                                     (reset! request req)
+                                                                     {:status  200
+                                                                      :body    "ok"
+                                                                      :headers ""}))
+        response                   (slurp (str root-url route))
+        {:keys [body method uri-path context-path path-params query-params]} @request]
+    (is (= "ok" response))
+    (is (= "GET" method))
+    (is (= route uri-path))
+    (is (= "" path-params))
+    (is (= {} query-params))
+    #_(is (= "" context-path))))
+
 
 (comment
   *e

@@ -1,4 +1,5 @@
 (ns http-jdk.server
+  (:require [clojure.string :as string])
   (:import [com.sun.net.httpserver HttpServer HttpHandler HttpExchange]
            [java.net InetSocketAddress]
            [java.util.concurrent Executors]))
@@ -42,7 +43,7 @@
       .getRequestURI
       .getPath))
 
-(defn extract-path-params
+#_(defn extract-path-params
   "Extracts path parameters by comparing request path against a pattern.
    For example, if context is /user and request is /users/123/posts/456,
    returns the remaining path /123/posts/456.
@@ -55,6 +56,38 @@
     (if (.startsWith request-path context-path)
       (subs request-path (count context-path))
       "")))
+
+(defn path-params-map
+  "Builds a map of path parameters from the request path and context path.
+
+   The function infers parameter names from a route pattern when the context
+   path contains placeholder segments such as :id or :section. For example,
+   a request to /users/42/profile with context /users/:id/:section will
+   produce {:id \"42\" :section \"profile\"}.
+
+   Args:
+     exchange - HttpExchange instance
+     context-path - the context path prefix (e.g., /users/:id/:section)
+
+   Returns: map of inferred parameter names to values"
+  [exchange context-path]
+  (let [request-path (request-path exchange)
+        context-segments (->> (string/split context-path #"/")
+                              (remove string/blank?)
+                              vec)
+        request-segments (->> (string/split request-path #"/")
+                              (remove string/blank?)
+                              vec)
+        remaining-segments (drop (count context-segments) request-segments)
+        param-names (->> context-segments
+                         (filter #(and (string? %)
+                                       (re-matches #"\{[^}]+\}" %)))
+                         (map #(keyword (subs % 1 (dec (count %)))))
+                         vec)]
+    (reduce-kv (fn [m idx segment]
+                 (assoc m (get param-names idx (keyword (str "p" (inc idx)))) segment))
+               {}
+               (vec remaining-segments))))
 
 (defn xf-exchange
   "Given an exchange, transform it into a map of request details for easier handling.
@@ -73,7 +106,7 @@
        :uri-path     (request-path exchange)
        :context-path context-path
        :exchange     exchange
-       :path-params  (extract-path-params exchange context-path)
+       :path-params  (path-params-map exchange context-path)
        :body         (slurp (.getRequestBody exchange))}
       (catch Exception e
         (println "Error processing exchange:" (.getMessage e))
@@ -180,13 +213,6 @@
   [exchange]
   (.getRequestURI exchange))
 
-
-
-
-
-
-
-
 ;; TODO - 
 ;; Change add-route to expect a fn that accepts a map created
 ;; from xf-exchange
@@ -209,12 +235,26 @@
   
   (def server (mk-http-server :host "localhost" :port 8080)) 
 
+  (def request (atom {}))
+
   ;; Simple route
-  (server :add-route "/hello" (fn [_] 
+  (server :add-route "/hello" (fn [req] 
+                                (reset! request req) 
                                 {:status  200
                                  :body    "Hello, World!"
                                  :headers ""}))
   
+  (server :add-route
+          "/users" 
+          (fn [req]
+            (reset! request req)
+            {:status  200
+             :body    "Profile item"
+             :headers ""}))
+  
+  (slurp "http://localhost:8080/users/1/posts/42")
+  
+  @request
   ;; Route with query parameters: GET /search?q=clojure&limit=10
   ;; (server :add-route "/search" (fn [exchange]
   ;;                                (let [params (query-params exchange)]
@@ -242,10 +282,11 @@
   ;;                                     format (get query-params "format" "html")]
   ;;                                 (send-resp exchange 200 
   ;;                                            (str "Post ID: " post-id ", Format: " format)))))
-;; 
+  ;; 
   (server :start)      ; starts listening (server :info)       ; {:host "localhost" :port 8080 ...}
   (server :server)     ; the HttpServer object
-  (server :stop) server  
+  (server :stop) 
+  server  
 
   ;;
   )
