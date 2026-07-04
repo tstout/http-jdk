@@ -77,24 +77,22 @@
                               vec)
         request-segments (->> (string/split request-path #"/")
                               (remove string/blank?)
-                              vec)
-        remaining-segments (drop (count context-segments) request-segments)
-        param-names (->> context-segments
-                         (filter #(and (string? %)
-                                       (re-matches #"\{[^}]+\}" %)))
-                         (map #(keyword (subs % 1 (dec (count %)))))
-                         vec)]
-    (reduce-kv (fn [m idx segment]
-                 (assoc m (get param-names idx (keyword (str "p" (inc idx)))) segment))
-               {}
-               (vec remaining-segments))))
+                              vec)]
+    (->> (keep-indexed (fn [idx template-segment]
+                         (when (and (string? template-segment)
+                                    (re-matches #"\{[^}]+\}" template-segment))
+                           [(keyword (subs template-segment 1 (dec (count template-segment))))
+                            (get request-segments idx)]))
+                       (take (min (count context-segments) (count request-segments))
+                             context-segments))
+         (into {}))))
 
 (defn xf-exchange
   "Given an exchange, transform it into a map of request details for easier handling.
    Args:
      exchange - HttpExchange instance
    Returns: map containing method, uri, headers, query-params, path-params, body"
-  [exchange]
+  [path-template exchange]
   (let [context-path (-> exchange
                          .getHttpContext
                          .getPath)]
@@ -106,7 +104,7 @@
        :uri-path     (request-path exchange)
        :context-path context-path
        :exchange     exchange
-       :path-params  (path-params-map exchange context-path)
+       :path-params  (path-params-map exchange path-template)
        :body         (slurp (.getRequestBody exchange))}
       (catch Exception e
         (println "Error processing exchange:" (.getMessage e))
@@ -131,31 +129,26 @@
       (.flush os))))
 
 (defn mk-handler
-  [handler-fn]
-  (reify HttpHandler
-    (handle [_this exchange]
-      (try
-        (->> exchange
-             xf-exchange
-             handler-fn
-             (send-resp exchange)) 
-        (catch Exception e
-          (println "Handler error:" (.getMessage e))
-          (.printStackTrace e)
-          (try
-            (send-resp exchange 
-                       {:headers "" :status 500 :body (str "Server error: " (.getMessage e))})
-            (catch Exception _
-              (println "Failed to send error response"))))))))
-
-;; For routes, want to provide a map to the hander containting:
-;; {:method "GET"
-;; :path "/users/123"
-;; :query-params {"q" "search term"}
-;; :path-params {"id" "123"}
-;; :headers {"User-Agent" "curl/7.64.1"}
-;; :body "(InputStream or string)}
-
+  ([handler-fn]
+   (mk-handler handler-fn ""))
+  ([handler-fn path-template]
+   (reify HttpHandler
+     (handle [_this exchange]
+       (try
+         (->> exchange
+              (xf-exchange path-template)
+              handler-fn
+              (send-resp exchange)) 
+         (catch Exception e
+           (println "Handler error:" (.getMessage e))
+           (.printStackTrace e)
+           (try
+             (send-resp exchange 
+                        {:headers "" 
+                         :status  500 
+                         :body    (str "Server error: " (.getMessage e))})
+             (catch Exception _
+               (println "Failed to send error response")))))))))
 
 (defn mk-http-server
   "Creates a JDK HTTP server.
@@ -194,8 +187,13 @@
                                    (reset! state :idle)
                                    (.stop server 0)))
                     :server    (fn [] server)
-                    :add-route (fn [path handler]
-                                 (.createContext server path (mk-handler handler)))
+                    :add-route (fn 
+                                 ([path handler]
+                                  (println "add-route-first arity")
+                                  (.createContext server path (mk-handler handler "")))
+                                 ([path handler path-template]
+                                  (println (str "path-template: " path-template))
+                                 (.createContext server path (mk-handler handler path-template))))
                     :info      (fn [] {:host    host
                                        :port    port
                                        :backlog backlog
@@ -232,61 +230,37 @@
 
 (comment
   *e
-  
-  (def server (mk-http-server :host "localhost" :port 8080)) 
+
+  (add-tap (fn [v] (println "tap:" v)))
+
+  (def server (mk-http-server :host "localhost" :port 8080))
 
   (def request (atom {}))
 
   ;; Simple route
-  (server :add-route "/hello" (fn [req] 
-                                (reset! request req) 
+  (server :add-route "/hello" (fn [req]
+                                (reset! request req)
                                 {:status  200
                                  :body    "Hello, World!"
                                  :headers ""}))
-  
+
   (server :add-route
-          "/users" 
+          "/users"
           (fn [req]
             (reset! request req)
             {:status  200
              :body    "Profile item"
-             :headers ""}))
-  
+             :headers ""})
+          "/users/{user-id}/posts/{post-id}")
+
   (slurp "http://localhost:8080/users/1/posts/42")
-  
+
   @request
-  ;; Route with query parameters: GET /search?q=clojure&limit=10
-  ;; (server :add-route "/search" (fn [exchange]
-  ;;                                (let [params (query-params exchange)]
-  ;;                                  (send-resp exchange 200 
-  ;;                                             (str "Search query: " (params "q") 
-  ;;                                                  ", limit: " (params "limit"))))))
-  ;; 
-  ;; Route with path parameters: GET /users/123
-  ;; The context path is the prefix, remaining path can be parsed manually
-  ;; (server :add-route "/users" (fn [exchange]
-  ;;                               (let [remaining-path (extract-path-params exchange "/users")
-  ;;                                     user-id (if (> (count remaining-path) 0)
-  ;;                                               (subs remaining-path 1) ; remove leading /
-  ;;                                               "none")]
-  ;;                                 (send-resp exchange 200 
-  ;;                                            (str "User ID: " user-id)))))
-  
-  ;; Route with both path and query: GET /posts/42?format=json
-  ;; (server :add-route "/posts" (fn [exchange]
-  ;;                               (let [remaining-path (extract-path-params exchange "/posts")
-  ;;                                     post-id (if (> (count remaining-path) 0)
-  ;;                                               (subs remaining-path 1)
-  ;;                                               "none")
-  ;;                                     query-params (get-query-params exchange)
-  ;;                                     format (get query-params "format" "html")]
-  ;;                                 (send-resp exchange 200 
-  ;;                                            (str "Post ID: " post-id ", Format: " format)))))
   ;; 
   (server :start)      ; starts listening (server :info)       ; {:host "localhost" :port 8080 ...}
   (server :server)     ; the HttpServer object
-  (server :stop) 
-  server  
-
+  (server :stop)
+  
+  server
   ;;
   )

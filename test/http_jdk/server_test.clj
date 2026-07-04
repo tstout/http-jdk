@@ -40,6 +40,12 @@
     (is (= {} query-params))
     #_(is (= "" context-path))))
 
+(deftest path-params-map-infers-placeholder-values
+  (let [exchange (proxy [Object] []
+                   (getRequestURI [] (java.net.URI. "http://localhost/users/42/posts/99")))]
+    (is (= {:user-id "42" :post-id "99"}
+           (server/path-params-map exchange "/users/{user-id}/posts/{post-id}")))))
+
 
 (comment
   *e
