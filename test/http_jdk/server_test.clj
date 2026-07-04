@@ -5,19 +5,18 @@
 (def ^:dynamic *test-server* nil)
 
 (defn with-test-server [f]
-  (binding [*test-server* (server/mk-http-server :host "localhost" :port 8080)]
-    (let [s *test-server*]
-      (s :add-route "/health" (fn [exchange]
-                                 (server/send-resp exchange 200 "ok")))
-      (s :start)
-      (try
-        (f)
-        (finally
-          (s :stop))))))
+  (binding [*test-server* (server/mk-http-server :host "localhost" :port 8080)] 
+    (*test-server* :add-route "/health" (fn [exchange]
+                                          (server/send-resp exchange 200 "ok")))
+    (*test-server* :start)
+    (try
+      (f)
+      (finally
+        (*test-server* :stop)))))
 
 (use-fixtures :once with-test-server)
 
-(deftest server-fixture-starts-and-stops
+(deftest server-fixture-starts
   (let [info (*test-server* :info)]
     (is (= "localhost" (:host info)))
     (is (= 8080 (:port info)))
@@ -25,6 +24,6 @@
 
 (comment
   *e
-  (run-tests)
+  (run-tests) 
   ;;
-)
+  )
