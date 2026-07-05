@@ -60,10 +60,10 @@
 (defn path-params-map
   "Builds a map of path parameters from the request path and context path.
 
-   The function infers parameter names from a route pattern when the context
-   path contains placeholder segments such as :id or :section. For example,
-   a request to /users/42/profile with context /users/:id/:section will
-   produce {:id \"42\" :section \"profile\"}.
+   The function infers parameter names from a route pattern from the context path. 
+   For example, if the context path 
+   is /users/{user-id}/posts/{post-id} and the request path is /users/42/posts/99, 
+   it will return {:user-id \"42\", :post-id \"99\"}.
 
    Args:
      exchange - HttpExchange instance
@@ -244,6 +244,8 @@
                                  :body    "Hello, World!"
                                  :headers ""}))
 
+  ;; basics working here for path param...consider minor hygiene improvement
+
   (server :add-route
           "/users"
           (fn [req]
@@ -255,12 +257,14 @@
 
   (slurp "http://localhost:8080/users/1/posts/42")
 
+  (slurp "http://localhost:8080/hello")
+
   @request
   ;; 
   (server :start)      ; starts listening (server :info)       ; {:host "localhost" :port 8080 ...}
   (server :server)     ; the HttpServer object
   (server :stop)
-  
+
   server
   ;;
   )
