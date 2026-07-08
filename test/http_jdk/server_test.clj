@@ -34,7 +34,7 @@
                                                                       :body    "ok"
                                                                       :headers ""}))
         response                   (slurp (str root-url route))
-        {:keys [body method uri-path context-path path-params query-params]} @request]
+        {:keys [method uri-path path-params query-params]} @request]
     (is (= "ok" response))
     (is (= "GET" method))
     (is (= route uri-path))
