@@ -16,7 +16,7 @@
       (into {}
             (map (fn [pair]
                    (let [[key val] (.split pair "=" 2)]
-                     [key (if (nil? val) "" val)]))
+                     [(keyword key) (if (nil? val) "" val)]))
                  pairs)))))
 
 (defn query-params

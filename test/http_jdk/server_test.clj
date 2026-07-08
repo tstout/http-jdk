@@ -5,9 +5,11 @@
 (def ^:dynamic *test-server* nil)
 
 (defn with-test-server [f]
-  (binding [*test-server* (server/mk-http-server :host "localhost" :port 8080)] 
-    (*test-server* :add-route "/health" (fn [exchange]
-                                          (server/send-resp exchange 200 "ok")))
+  (binding [*test-server* (server/mk-http-server :host "localhost" :port 8080)]
+    (*test-server* :add-route "/health" (fn [_req]
+                                          {:status  200
+                                           :body    "ok"
+                                           :headers ""}))
     (*test-server* :start)
     (try
       (f)
@@ -36,19 +38,52 @@
     (is (= "ok" response))
     (is (= "GET" method))
     (is (= route uri-path))
-    (is (= "" path-params))
+    (is (= {} path-params))
     (is (= {} query-params))
     #_(is (= "" context-path))))
 
-(deftest path-params-map-infers-placeholder-values
-  (let [exchange (proxy [Object] []
-                   (getRequestURI [] (java.net.URI. "http://localhost/users/42/posts/99")))]
-    (is (= {:user-id "42" :post-id "99"}
-           (server/path-params-map exchange "/users/{user-id}/posts/{post-id}")))))
+(deftest path-param-route
+  (let [route                "/users/"
+        route-template       "/users/{user-id}/posts/{post-id}"
+        root-url             "http://localhost:8080"
+        request              (atom {})
+        _                    (*test-server* :add-route
+                                            route
+                                            (fn [req]
+                                              (reset! request req)
+                                              {:status  200
+                                               :body    "ok"
+                                               :headers ""})
+                                            route-template)
+        response            (slurp (str root-url "/users/42/posts/99"))
+        {:keys [method uri-path path-params query-params]} @request]
+    (is (= "ok" response))
+    (is (= "GET" method))
+    (is (= "/users/42/posts/99" uri-path))
+    (is (= {:user-id "42"
+            :post-id "99"} path-params))
+    (is (= {} query-params))))
+
+(deftest query-param-route
+  (let [request              (atom {})
+        _                    (*test-server* :add-route
+                                            "/search"
+                                            (fn [req]
+                                              (reset! request req)
+                                              {:status  200
+                                               :body    "ok"
+                                               :headers ""}))
+        response            (slurp "http://localhost:8080/search?q=clojure&sort=desc")
+        {:keys [query-params method]} @request]
+    (is (= "ok" response))
+    (is (= "GET" method)) 
+    (is (= {:q    "clojure"
+            :sort "desc"} query-params))))
+
 
 
 (comment
   *e
-  (run-tests) 
+  (run-tests)
   ;;
   )
