@@ -43,20 +43,6 @@
       .getRequestURI
       .getPath))
 
-#_(defn extract-path-params
-  "Extracts path parameters by comparing request path against a pattern.
-   For example, if context is /user and request is /users/123/posts/456,
-   returns the remaining path /123/posts/456.
-   Args:
-     exchange - HttpExchange instance
-     context-path - the context path prefix (e.g., /users)
-   Returns: remaining path as string"
-  [exchange context-path]
-  (let [request-path (request-path exchange)]
-    (if (.startsWith request-path context-path)
-      (subs request-path (count context-path))
-      "")))
-
 (defn path-params-map
   "Builds a map of path parameters from the request path and context path.
 
@@ -67,7 +53,7 @@
 
    Args:
      exchange - HttpExchange instance
-     context-path - the context path prefix (e.g., /users/:id/:section)
+     context-path - the context path prefix (e.g., /users/{id}/:section)
 
    Returns: map of inferred parameter names to values"
   [exchange context-path]
@@ -189,10 +175,10 @@
                     :server    (fn [] server)
                     :add-route (fn 
                                  ([path handler]
-                                  (println "add-route-first arity")
+                                  (tap> "add-route-first arity")
                                   (.createContext server path (mk-handler handler "")))
                                  ([path handler path-template]
-                                  (println (str "path-template: " path-template))
+                                  (tap> (str "path-template: " path-template))
                                  (.createContext server path (mk-handler handler path-template))))
                     :info      (fn [] {:host    host
                                        :port    port
