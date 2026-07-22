@@ -36,7 +36,7 @@
      :headers (.map (.headers resp))}))
 
 (comment
-  (-> "https://httpbin.org/get"
+  (-> "https://httpbin.org/get?foo=bar&baz=quux"
       get-request
       http-tx)
   
