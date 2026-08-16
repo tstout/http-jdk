@@ -33,16 +33,19 @@
 ;; 3) check the response and the request map captured by the route handler
 ;;
 (deftest basic-route
-  (let [route                                              "/v1/service/health"
-        root-url                                           "http://localhost:8080"
-        request                                            (atom {})
-        _                                                  (*test-server* :add-route route (fn [req]
-                                                                                             (reset! request req)
-                                                                                             {:status  200
-                                                                                              :body    "ok"
-                                                                                              :headers ""}))
-        response                                           (slurp (str root-url route))
-        {:keys [method uri-path path-params query-params]} @request]
+  (let [route                  "/v1/service/health"
+        root-url               "http://localhost:8080"
+        request                (atom {})
+        _                      (*test-server* :add-route route (fn [req]
+                                                                 (reset! request req)
+                                                                 {:status  200
+                                                                  :body    "ok"
+                                                                  :headers ""}))
+        response               (slurp (str root-url route))
+        {:keys [method 
+                uri-path 
+                path-params 
+                query-params]} @request]
     (is (= "ok" response))
     (is (= "GET" method))
     (is (= route uri-path))
@@ -51,20 +54,23 @@
     #_(is (= "" context-path))))
 
 (deftest path-param-route
-  (let [route                                              "/users/"
-        route-template                                     "/users/{user-id}/posts/{post-id}"
-        root-url                                           "http://localhost:8080"
-        request                                            (atom {})
-        _                                                  (*test-server* :add-route
-                                                                          route
-                                                                          (fn [req]
-                                                                            (reset! request req)
-                                                                            {:status  200
-                                                                             :body    "ok"
-                                                                             :headers ""})
-                                                                          route-template)
-        response                                           (slurp (str root-url "/users/42/posts/99"))
-        {:keys [method uri-path path-params query-params]} @request]
+  (let [route                  "/users/"
+        route-template         "/users/{user-id}/posts/{post-id}"
+        root-url               "http://localhost:8080"
+        request                (atom {})
+        _                      (*test-server* :add-route
+                                              route
+                                              (fn [req]
+                                                (reset! request req)
+                                                {:status  200
+                                                 :body    "ok"
+                                                 :headers ""})
+                                              route-template)
+        response               (slurp (str root-url "/users/42/posts/99"))
+        {:keys [method 
+                uri-path 
+                path-params 
+                query-params]} @request]
     (is (= "ok" response))
     (is (= "GET" method))
     (is (= "/users/42/posts/99" uri-path))

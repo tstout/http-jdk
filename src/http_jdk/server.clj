@@ -93,6 +93,7 @@
        :path-params  (path-params-map exchange path-template)
        :body         (slurp (.getRequestBody exchange))}
       (catch Exception e
+        ;; TODO - replace with logging
         (println "Error processing exchange:" (.getMessage e))
         {}))))
 
@@ -114,6 +115,7 @@
       (.write os response-bytes)
       (.flush os))))
 
+;; TODO - this needs to be refactored  a bit...
 (defn mk-handler
   ([handler-fn]
    (mk-handler handler-fn ""))
@@ -126,6 +128,7 @@
               handler-fn
               (send-resp exchange)) 
          (catch Exception e
+           ;; TODO - replace with logging
            (println "Handler error:" (.getMessage e))
            (.printStackTrace e)
            (try
@@ -134,6 +137,7 @@
                          :status  500 
                          :body    (str "Server error: " (.getMessage e))})
              (catch Exception _
+               ;; TODO - add logging
                (println "Failed to send error response")))))))))
 
 (defn mk-http-server
@@ -165,8 +169,7 @@
                      (.setExecutor server executor))
         server-ops {:start     (fn []
                                  (when (= :idle @state)
-                                   (reset! state :running)
-                                   (println "Starting server")
+                                   (reset! state :running) 
                                    (.start server)))
                     :stop      (fn []
                                  (when (= :running @state)
@@ -236,7 +239,7 @@
           "/users"
           (fn [req]
             (reset! request req)
-            {:status  200
+            {:status  200`
              :body    "Profile item"
              :headers ""})
           "/users/{user-id}/posts/{post-id}")
