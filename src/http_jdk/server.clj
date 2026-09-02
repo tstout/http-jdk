@@ -1,5 +1,6 @@
 (ns http-jdk.server
-  (:require [clojure.string :as string])
+  (:require [clojure.string :as string]
+            [clojure.tools.logging :as log])
   (:import [com.sun.net.httpserver HttpServer HttpHandler HttpExchange]
            [java.net InetSocketAddress]
            [java.util.concurrent Executors]))
@@ -102,9 +103,11 @@
   "Sends a response with given status and body.
    Args:
      exchange - HttpExchange instance
+    m - map containing:
      status - HTTP status code (e.g., 200)
      body - response body as string
-  "
+  " 
+  ;; TODO - need to handle headers and content-type
   [exchange m]
   (let [{:keys [body status headers]} m
         response-bytes (.getBytes body "UTF-8")
@@ -115,7 +118,7 @@
       (.write os response-bytes)
       (.flush os))))
 
-;; TODO - this needs to be refactored  a bit...
+;; TODO - this needs to be refactored a bit...
 (defn mk-handler
   ([handler-fn]
    (mk-handler handler-fn ""))
@@ -140,6 +143,8 @@
                ;; TODO - add logging
                (println "Failed to send error response")))))))))
 
+;; TODO - see what it would take for :add-route to replace existing route
+;; fn when called multiple times from REPL context.
 (defn mk-http-server
   "Creates a JDK HTTP server.
    
@@ -170,8 +175,9 @@
         server-ops {:start     (fn []
                                  (when (= :idle @state)
                                    (reset! state :running) 
-                                   (.start server)))
-                    :stop      (fn []
+                                   (.start server)
+                                   (log/infof "HTTP server started on %s:%d" host port)))
+                    :stop      (fn [] 
                                  (when (= :running @state)
                                    (reset! state :idle)
                                    (.stop server 0)))

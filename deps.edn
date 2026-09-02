@@ -1,5 +1,6 @@
 {:paths ["resources" "src"]
- :deps  {org.clojure/tools.cli {:mvn/version "0.3.5"}}
+ :deps  {org.clojure/tools.cli     {:mvn/version "0.3.5"}
+         org.clojure/tools.logging {:mvn/version "1.2.4"}}
  :aliases
  {:http-jdk {:main-opts ["-m" "http-jdk.core"]}
   :build
