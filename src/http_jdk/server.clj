@@ -93,9 +93,8 @@
        :exchange     exchange
        :path-params  (path-params-map exchange path-template)
        :body         (slurp (.getRequestBody exchange))}
-      (catch Exception e
-        ;; TODO - replace with logging
-        (println "Error processing exchange:" (.getMessage e))
+      (catch Exception e 
+        (log/error e "Error processing exchange:") 
         {}))))
 
 ;; This could be private
@@ -130,18 +129,15 @@
               (xf-exchange path-template)
               handler-fn
               (send-resp exchange)) 
-         (catch Exception e
-           ;; TODO - replace with logging
-           (println "Handler error:" (.getMessage e))
-           (.printStackTrace e)
+         (catch Exception e 
+           (log/error e "Handler error:") 
            (try
              (send-resp exchange 
                         {:headers "" 
                          :status  500 
                          :body    (str "Server error: " (.getMessage e))})
-             (catch Exception _
-               ;; TODO - add logging
-               (println "Failed to send error response")))))))))
+             (catch Exception e 
+               (log/error e "Failed to send error response")))))))))
 
 ;; TODO - see what it would take for :add-route to replace existing route
 ;; fn when called multiple times from REPL context.
@@ -176,11 +172,12 @@
                                  (when (= :idle @state)
                                    (reset! state :running) 
                                    (.start server)
-                                   (log/infof "HTTP server started on %s:%d" host port)))
+                                   (log/infof "JDK HTTP server started on %s:%d" host port)))
                     :stop      (fn [] 
                                  (when (= :running @state)
                                    (reset! state :idle)
-                                   (.stop server 0)))
+                                   (.stop server 0)
+                                   (log/infof "JDK HTTP server stopped on %s:%d" host port)))
                     :server    (fn [] server)
                     :add-route (fn 
                                  ([path handler]
