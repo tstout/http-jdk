@@ -6,7 +6,7 @@ It is not deprecated (as of 2026).
 
 ## Motivation
 Occasionally, you need a no-frills, small footprint (depedency-wise), HTTP 1.1 web server.
-This library provides http server functionality with only a runtime dependency on the JRE and clojure.
+This library provides http server functionality with only a runtime dependency on the JRE and clojure. The intended use case for this library is for small applications and testing tools.
 
 ## Quick Start
 
@@ -107,3 +107,7 @@ The route function should return a response map containing:
 `:status` is the HTTP status code and `:body` must be a string. `:headers` is
 accepted for compatibility with the response map shape; responses currently
 use the library's `text/plain; charset=UTF-8` content type.
+
+# TODO
+This is barely functional at the moment, but meets my initial use case.
+Minor work is needed for header processing. 
