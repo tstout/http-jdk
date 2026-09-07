@@ -5,6 +5,8 @@
            [java.net InetSocketAddress]
            [java.util.concurrent Executors]))
 
+(set! *warn-on-reflection* true)
+
 (defn parse-query-params
   "Parses query parameters from a URI query string.
    Args:
