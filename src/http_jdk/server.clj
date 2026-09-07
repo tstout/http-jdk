@@ -84,7 +84,7 @@
                          .getHttpContext
                          .getPath)]
     (try
-      {:method       (.getRequestMethod exchange)
+      {:method       (-> exchange .getRequestMethod string/lower-case keyword)
        :uri          (.getRequestURI exchange)
        :headers      (.getRequestHeaders exchange)
        :query-params (query-params exchange)
@@ -240,13 +240,13 @@
                                  :headers ""}))
 
   ;; basics working here for path param...consider minor hygiene improvement
-
+  
   (server :add-route
           "/users"
           (fn [req]
             (reset! request req)
-            {:status  200`
-             :body    "Profile item"
+            {:status  200 `
+                           :body    "Profile item"
              :headers ""})
           "/users/{user-id}/posts/{post-id}")
 
@@ -261,5 +261,9 @@
   (server :stop)
 
   server
+
+  (keyword(string/lower-case "GET"))
+
+  
   ;;
   )

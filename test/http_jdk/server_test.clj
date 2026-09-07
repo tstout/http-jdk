@@ -47,7 +47,7 @@
                 path-params 
                 query-params]} @request]
     (is (= "ok" response))
-    (is (= "GET" method))
+    (is (= :get method))
     (is (= route uri-path))
     (is (= {} path-params))
     (is (= {} query-params))
@@ -72,7 +72,7 @@
                 path-params 
                 query-params]} @request]
     (is (= "ok" response))
-    (is (= "GET" method))
+    (is (= :get method))
     (is (= "/users/42/posts/99" uri-path))
     (is (= {:user-id "42"
             :post-id "99"} path-params))
@@ -90,7 +90,7 @@
         response                      (slurp "http://localhost:8080/search?q=clojure&sort=desc")
         {:keys [query-params method]} @request]
     (is (= "ok" response))
-    (is (= "GET" method)) 
+    (is (= :get method)) 
     (is (= {:q    "clojure"
             :sort "desc"} query-params))))
 
@@ -109,7 +109,7 @@
                           http-tx)
         {:keys [method]} @request]
     (is (= "body-text" (:body response)))
-    (is (= "POST" method))))
+    (is (= :post method))))
 
 (comment
   *e
