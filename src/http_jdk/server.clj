@@ -12,13 +12,13 @@
    Args:
      query-string - the query string (e.g., \"name=John&age=30\")
    Returns: map of parameters (e.g., {\"name\" \"John\" \"age\" \"30\"})"
-  [query-string]
+  [^String query-string]
   (if (nil? query-string)
     {}
-    (let [pairs (.split query-string "&")]
+    (let [pairs (.split ^String query-string "&")]
       (into {}
             (map (fn [pair]
-                   (let [[key val] (.split pair "=" 2)]
+                   (let [[key val] (.split ^String pair "=" 2)]
                      [(keyword key) (if (nil? val) "" val)]))
                  pairs)))))
 
@@ -29,11 +29,9 @@
      exchange - HttpExchange instance
    
    Returns: map of query parameters"
-  [exchange]
-  (-> exchange
-      .getRequestURI
-      .getQuery
-      parse-query-params))
+  [^HttpExchange exchange]
+  (let [^java.net.URI uri (.getRequestURI exchange)]
+    (parse-query-params (.getQuery uri))))
 
 
 (defn request-path
@@ -41,10 +39,9 @@
    Args:
      exchange - HttpExchange instance
    Returns: path as string (e.g., /users/123)"
-  [exchange]
-  (-> exchange
-      .getRequestURI
-      .getPath))
+  [^HttpExchange exchange]
+  (let [^java.net.URI uri (.getRequestURI exchange)]
+    (.getPath uri)))
 
 (defn path-params-map
   "Builds a map of path parameters from the request path and context path.
@@ -59,7 +56,7 @@
      context-path - the context path prefix (e.g., /users/{id}/:section)
 
    Returns: map of inferred parameter names to values"
-  [exchange context-path]
+  [^HttpExchange exchange ^String context-path]
   (let [request-path (request-path exchange)
         context-segments (->> (string/split context-path #"/")
                               (remove string/blank?)
@@ -81,12 +78,11 @@
    Args:
      exchange - HttpExchange instance
    Returns: map containing method, uri, headers, query-params, path-params, body"
-  [path-template exchange]
-  (let [context-path (-> exchange
-                         .getHttpContext
-                         .getPath)]
+  [^String path-template ^HttpExchange exchange]
+  (let [^com.sun.net.httpserver.HttpContext context (.getHttpContext exchange)
+        ^String context-path (.getPath context)]
     (try
-      {:method       (-> exchange .getRequestMethod string/lower-case keyword)
+      {:method       (-> ^String (.getRequestMethod exchange) string/lower-case keyword)
        :uri          (.getRequestURI exchange)
        :headers      (.getRequestHeaders exchange)
        :query-params (query-params exchange)
@@ -109,13 +105,13 @@
      body - response body as string
   " 
   ;; TODO - need to handle headers and content-type
-  [exchange m]
+  [^HttpExchange exchange m]
   (let [{:keys [body status headers]} m
-        response-bytes (.getBytes body "UTF-8")
+        response-bytes (.getBytes ^String body "UTF-8")
         response-len (count response-bytes)]
-    (.set (.getResponseHeaders exchange) "Content-Type" "text/plain; charset=UTF-8")
+    (.set (.getResponseHeaders ^HttpExchange exchange) "Content-Type" "text/plain; charset=UTF-8")
     (.sendResponseHeaders exchange status response-len)
-    (with-open [os (.getResponseBody exchange)]
+    (with-open [^java.io.OutputStream os (.getResponseBody exchange)]
       (.write os response-bytes)
       (.flush os))))
 
@@ -125,21 +121,22 @@
    (mk-handler handler-fn ""))
   ([handler-fn path-template]
    (reify HttpHandler
-     (handle [_this exchange]
+    (^void handle [_this ^HttpExchange exchange]
        (try
          (->> exchange
               (xf-exchange path-template)
               handler-fn
-              (send-resp exchange)) 
-         (catch Exception e 
-           (log/error e "Handler error:") 
+              (send-resp exchange))
+         (catch Exception e
+           (log/error e "Handler error:")
            (try
-             (send-resp exchange 
-                        {:headers "" 
-                         :status  500 
+             (send-resp exchange
+                        {:headers ""
+                         :status  500
                          :body    (str "Server error: " (.getMessage e))})
-             (catch Exception e 
-               (log/error e "Failed to send error response")))))))))
+             (catch Exception e
+               (log/error e "Failed to send error response")))))
+       nil))))
 
 ;; TODO - see what it would take for :add-route to replace existing route
 ;; fn when called multiple times from REPL context.
@@ -165,8 +162,11 @@
       :or   {host    "localhost" 
              port    8080 
              backlog 0}}] 
-  (let [addr       (InetSocketAddress. host port)
-        server     (HttpServer/create addr backlog)
+  (let [host       (str host)
+        port       (int port)
+        backlog    (int backlog)
+        ^InetSocketAddress addr (InetSocketAddress. ^String host ^int port)
+        server     (HttpServer/create addr ^int backlog)
         state      (atom :idle)
         _          (when executor
                      (.setExecutor server executor))
@@ -202,7 +202,7 @@
    Args:
      exchange - HttpExchange instance
    Returns: java.net.URI"
-  [exchange]
+  [^HttpExchange exchange]
   (.getRequestURI exchange))
 
 ;; TODO - 
@@ -218,7 +218,7 @@
      value - header value
    
    Returns: nil"
-  [exchange name value]
+  [^HttpExchange exchange ^String name ^String value]
   (.set (.getResponseHeaders exchange) name value))
 
 
