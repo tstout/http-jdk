@@ -6,7 +6,7 @@ It is not deprecated (as of 2026).
 
 ## Motivation
 Occasionally, you need a no-frills, small footprint (depedency-wise), HTTP 1.1 web server.
-This library provides http server functionality with only a runtime dependency on the JRE and clojure. The intended use case for this library is for small applications and testing tools.
+This library provides http server functionality with only a runtime dependency on the JRE and clojure. The intended use case for this library is for small applications and tools.
 
 ## Quick Start
 
