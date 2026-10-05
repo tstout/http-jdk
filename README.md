@@ -17,12 +17,11 @@ Require the server namespace, create a server, add routes, and start it:
 
 (def server
 	(http/mk-http-server :host "localhost"
-											 :port 8080))
+						 :port 8080))
 
-(server :add-route "/hello"
-				(fn [_request]
-					{:status 200
-					 :body "Hello, world!"}))
+(server :add-route 
+        "/hello"
+		(fn [_request] {:status 200 :body "Hello, world!"}))
 
 (server :start)
 ```
@@ -40,10 +39,11 @@ A route function receives one request map. For example, this route reads query
 parameters from `/search?q=clojure`:
 
 ```clojure
-(server :add-route "/search"
-				(fn [{:keys [query-params]}]
-					{:status 200
-					 :body (str "Searching for: " (:q query-params))}))
+(server :add-route 
+        "/search"
+		(fn [{:keys [query-params]}]
+			{:status 200
+			 :body (str "Searching for: " (:q query-params))}))
 ```
 
 Path parameters are declared with a route template passed as the third argument
@@ -51,11 +51,11 @@ to `:add-route`:
 
 ```clojure
 (server :add-route
-				"/users"
-				(fn [{:keys [path-params]}]
-					{:status 200
-					 :body (str "User: " (:user-id path-params))})
-				"/users/{user-id}")
+		"/users"
+		(fn [{:keys [path-params]}]
+			{:status 200
+			 :body   (str "User: " (:user-id path-params))})
+		"/users/{user-id}")
 ```
 
 The request `GET /users/42` produces `{:user-id "42"}` in `:path-params`.
@@ -66,10 +66,11 @@ The request body is available as a string in `:body`. This route echoes a POST
 body back to the client:
 
 ```clojure
-(server :add-route "/echo"
-				(fn [{:keys [body]}]
-					{:status 200
-					 :body body}))
+(server :add-route 
+         "/echo"
+		(fn [{:keys [body]}]
+			{:status 200
+			 :body body}))
 ```
 
 For example:
@@ -99,8 +100,8 @@ The route function receives a map with these keys:
 The route function should return a response map containing:
 
 ```clojure
-{:status 200
- :body "response text"
+{:status  200
+ :body    "response text"
  :headers ""}
 ```
 
