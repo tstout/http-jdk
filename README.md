@@ -16,8 +16,7 @@ Require the server namespace, create a server, add routes, and start it:
 (require '[http-jdk.server :as http])
 
 (def server
-	(http/mk-http-server :host "localhost"
-						 :port 8080))
+	(http/mk-http-server :host "localhost" :port 8080))
 
 (server :add-route 
         "/hello"
@@ -39,11 +38,9 @@ A route function receives one request map. For example, this route reads query
 parameters from `/search?q=clojure`:
 
 ```clojure
-(server :add-route 
-        "/search"
-		(fn [{:keys [query-params]}]
-			{:status 200
-			 :body (str "Searching for: " (:q query-params))}))
+(server :add-route "/search" (fn [{:keys [query-params]}]
+							   {:status 200
+								:body (str "Searching for: " (:q query-params))}))
 ```
 
 Path parameters are declared with a route template passed as the third argument
